@@ -1,0 +1,31 @@
+services:
+  tailscale-app:
+    image: tailscale/tailscale:latest
+    hostname: couch-tailscale
+    env_file: .env.tailscale-app
+    volumes:
+      - tailscale-data:/var/lib/tailscale
+      - ${PWD}/ts-conf/ts-serve.json:/config/ts-serve.json:ro
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+      - sys_module
+    restart: unless-stopped
+  app:
+    image: couchdb:3.4.2
+    network_mode: service:tailscale-app
+    depends_on:
+      - tailscale-app
+    env_file: .env.couchdb
+    volumes:
+        # The files' owner will be id:5984 when you launch the image.
+        # Because CouchDB writes on-the-fly configurations into local.ini.
+        # So when you want to perform git pull or change something, you have to change owners back.
+        - couchdb-data:/opt/couchdb/data
+        - ${PWD}/conf/local.ini:/opt/couchdb/etc/local.ini
+    restart: unless-stopped
+volumes:
+  tailscale-data:
+    driver: local
+  couchdb-data:
+    driver: local
