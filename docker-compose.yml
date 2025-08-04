@@ -1,31 +1,44 @@
 services:
   tailscale-app:
-    image: tailscale/tailscale:latest
+    image: tailscale/tailscale:latest # Use the latest Tailscale image
     hostname: couch-tailscale
+    container_name: tailscale-app # Proper name for the Tailscale container
     env_file: .env.tailscale-app
     volumes:
       - tailscale-data:/var/lib/tailscale
       - ${PWD}/ts-conf/ts-serve.json:/config/ts-serve.json:ro
       - /dev/net/tun:/dev/net/tun
+      - /lib/modules:/lib/modules:ro # Crucial for modprobe and kernel module access
     cap_add:
-      - net_admin
-      - sys_module
+      - NET_ADMIN
+      - SYS_MODULE # Crucial for modprobe
+      - NET_RAW # Often helpful for network manipulation
+      - NET_BIND_SERVICE
+    networks: 
+      - funnel_network
     restart: unless-stopped
-  app:
-    image: couchdb:3.4.2
-    network_mode: service:tailscale-app
+
+  couchdb-app:
+    image: couchdb:latest # Use the latest CouchDB image
+    container_name: couchdb-app # Proper name for the CouchDB container
     depends_on:
       - tailscale-app
     env_file: .env.couchdb
     volumes:
-        # The files' owner will be id:5984 when you launch the image.
-        # Because CouchDB writes on-the-fly configurations into local.ini.
-        # So when you want to perform git pull or change something, you have to change owners back.
-        - couchdb-data:/opt/couchdb/data
-        - ${PWD}/conf/local.ini:/opt/couchdb/etc/local.ini
+      - ${PWD}/couchdb-data:/opt/couchdb/data
+      - ${PWD}/couchdb-etc:/opt/couchdb/etc/local.d
+    networks:
+      - funnel_network
     restart: unless-stopped
+
 volumes:
   tailscale-data:
     driver: local
   couchdb-data:
     driver: local
+  couchdb-etc:
+    driver: local
+
+networks:
+  funnel_network:
+    driver: bridge # Default driver for bridge networks
